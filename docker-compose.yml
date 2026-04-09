@@ -1,0 +1,27 @@
+version: "3.11"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vaultiq-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./certs:/app/certs:ro
+      - vaultiq_data:/app/data
+    env_file:
+      - .env
+    environment:
+      DB_PATH: /app/data/vaultiq.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  vaultiq_data:
