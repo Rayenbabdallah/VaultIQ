@@ -7,6 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
+# Configure tesseract binary path (fallback OCR — Windows requires explicit path)
+_tesseract_cmd = os.getenv("TESSERACT_CMD")
+if _tesseract_cmd:
+    import pytesseract
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -10,4 +10,4 @@ python-multipart==0.0.20
 httpx==0.28.1
 boto3==1.37.37
 pytesseract==0.3.13
-Pillow==11.1.0
+Pillow>=11.2.0
