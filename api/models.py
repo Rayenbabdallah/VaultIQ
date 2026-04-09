@@ -28,6 +28,14 @@ class LoanStatus(str, enum.Enum):
     disbursed = "disbursed"
 
 
+class RiskTier(str, enum.Enum):
+    low = "LOW"
+    medium = "MEDIUM"
+    high = "HIGH"
+    blocked = "BLOCKED"
+    manual_review = "MANUAL_REVIEW"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -60,6 +68,10 @@ class LoanApplication(Base):
     purpose = Column(String(500), nullable=True)
     status = Column(SAEnum(LoanStatus), default=LoanStatus.pending, nullable=False)
     notes = Column(Text, nullable=True)
+    # Risk scoring fields — populated by the AI risk engine after submission
+    trust_score = Column(Integer, nullable=True)
+    risk_tier = Column(SAEnum(RiskTier), nullable=True)
+    risk_narrative = Column(Text, nullable=True)
     submitted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
         DateTime,
