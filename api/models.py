@@ -14,6 +14,12 @@ class UserRole(str, enum.Enum):
     applicant = "applicant"
 
 
+class KYCStatus(str, enum.Enum):
+    pending = "pending"
+    verified = "verified"
+    failed = "failed"
+
+
 class LoanStatus(str, enum.Enum):
     pending = "pending"
     under_review = "under_review"
@@ -30,6 +36,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
     role = Column(SAEnum(UserRole), default=UserRole.applicant, nullable=False)
+    kyc_status = Column(SAEnum(KYCStatus), default=KYCStatus.pending, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(

@@ -1,0 +1,20 @@
+[
+  {
+    "id_number": "ID-001-ALPHA",
+    "full_name": "Alice Martin",
+    "email": "alice.martin@example.com",
+    "date_of_birth": "1990-04-15"
+  },
+  {
+    "id_number": "ID-002-BRAVO",
+    "full_name": "Bob Nguyen",
+    "email": "bob.nguyen@example.com",
+    "date_of_birth": "1985-11-23"
+  },
+  {
+    "id_number": "ID-003-CHARLIE",
+    "full_name": "Clara Osei",
+    "email": "clara.osei@example.com",
+    "date_of_birth": "1995-07-08"
+  }
+]
