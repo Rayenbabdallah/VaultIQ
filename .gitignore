@@ -8,3 +8,5 @@ certs/*.pem
 venv/
 dist/
 *.egg-info/
+.claude
+.claude/settings.local.json
