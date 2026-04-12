@@ -1,15 +1,33 @@
+# Environment
 .env
+
+# Python
 __pycache__/
 *.py[cod]
-*.db
-*.sqlite
-certs/*.pem
+*.egg-info/
 .venv/
 venv/
-dist/
-*.egg-info/
+
+# Database
+*.db
+*.sqlite
+
+# Certificates (secrets)
+certs/*.pem
+
+# Generated vault documents
 vault/unsigned/*.pdf
 vault/signed/*.pdf
 vault/signed/*.xml
-.claude
-.claude/settings.local.json
+
+# Frontend
+frontend/node_modules/
+frontend/package-lock.json
+frontend/dist/
+
+# Docker volumes (local data)
+data/vaultiq.db
+
+# IDE / tools
+.claude/
+*.docx
