@@ -37,7 +37,7 @@ load_dotenv(ROOT / ".env")
 
 from datetime import datetime, timezone
 
-from passlib.context import CryptContext
+import bcrypt as _bcrypt_lib
 
 from api.auth import create_access_token
 from api.database import SessionLocal, init_db
@@ -51,11 +51,9 @@ from api.models import (
     UserRole,
 )
 
-_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def _hash(password: str) -> str:
-    return _pwd_ctx.hash(password)
+    return _bcrypt_lib.hashpw(password.encode(), _bcrypt_lib.gensalt()).decode()
 
 
 # ---------------------------------------------------------------------------
@@ -113,29 +111,17 @@ def main() -> None:
                 hashed_password=_hash(APPLICANT["password"]),
                 full_name=APPLICANT["name"],
                 role=UserRole.applicant,
-                kyc_status=KYCStatus.verified,
+                kyc_status=KYCStatus.pending,   # unverified — let the demo flow verify via KYC step
                 is_active=True,
             )
             db.add(applicant)
             db.flush()
-            db.add(AuditLog(
-                actor_id=applicant.id,
-                action="kyc.verified",
-                detail="Pre-verified by demo_seed.py",
-                ip_address="127.0.0.1",
-            ))
             print(f"✓ Applicant created : {applicant.email}  (id={applicant.id})")
         else:
-            if applicant.kyc_status != KYCStatus.verified:
-                applicant.kyc_status = KYCStatus.verified
-                applicant.updated_at = datetime.now(timezone.utc)
-                db.add(AuditLog(
-                    actor_id=applicant.id,
-                    action="kyc.verified",
-                    detail="KYC reset to verified by demo_seed.py",
-                    ip_address="127.0.0.1",
-                ))
-            print(f"✓ Applicant exists  : {applicant.email}  (id={applicant.id})")
+            # Reset KYC so the full 4-step flow can be demoed again
+            applicant.kyc_status = KYCStatus.pending
+            applicant.updated_at = datetime.now(timezone.utc)
+            print(f"✓ Applicant reset   : {applicant.email}  kyc=pending  (id={applicant.id})")
 
         # ── Admin ─────────────────────────────────────────────────────────────
         admin = db.query(User).filter(User.email == ADMIN["email"]).first()
