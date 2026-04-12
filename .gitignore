@@ -31,3 +31,6 @@ data/vaultiq.db
 # IDE / tools
 .claude/
 *.docx
+
+VaultIQ_Full_Project.docx
+scripts/gen_submission1.py
