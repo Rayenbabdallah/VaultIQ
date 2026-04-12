@@ -78,10 +78,7 @@ def _require_kyc_verified(payload: dict = Depends(get_current_user)) -> dict:
     if payload.get("kyc_status") != "verified":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": "KYC_REQUIRED",
-                "reason": "KYC verification is required before applying for a loan.",
-            },
+            detail="KYC verification is required before applying for a loan.",
         )
     return payload
 

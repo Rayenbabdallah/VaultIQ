@@ -43,7 +43,7 @@ from sqlalchemy.orm import Session
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import signers
 from pyhanko.sign.fields import SigSeedSubFilter
-from pyhanko.sign.signers import PdfTimestamper
+from pyhanko.sign.signers import PdfTimeStamper
 from pyhanko.sign.timestamps import HTTPTimeStamper
 
 from api.models import AuditLog, LoanApplication
@@ -204,7 +204,7 @@ def sign_pades_b(loan_id: int, db: Session) -> Path:
 async def _async_doc_timestamp(pades_b_bytes: bytes) -> bytes:
     """Embed an RFC 3161 document timestamp into a signed PDF (PAdES-T upgrade)."""
     timestamper = HTTPTimeStamper(TSA_URL)
-    pdf_ts = PdfTimestamper(timestamper)
+    pdf_ts = PdfTimeStamper(timestamper)
     buf = io.BytesIO(pades_b_bytes)
     w = IncrementalPdfFileWriter(buf)
     result = await pdf_ts.async_timestamp_pdf(w, md_algorithm="sha256")

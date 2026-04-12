@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 load_dotenv()
 
@@ -52,6 +53,18 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Global error handlers
 # ---------------------------------------------------------------------------
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Pass-through HTTP exceptions with their original status code and detail."""
+    detail = exc.detail
+    if isinstance(detail, dict):
+        detail = detail.get("reason") or detail.get("message") or str(detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": f"HTTP_{exc.status_code}", "detail": detail},
+    )
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError):
