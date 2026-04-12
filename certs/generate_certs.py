@@ -95,6 +95,24 @@ def generate_leaf(
         .not_valid_after(now + datetime.timedelta(days=VALIDITY_DAYS))
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                content_commitment=True,   # non-repudiation — required by pyHanko
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.EMAIL_PROTECTION]),
+            critical=False,
+        )
+        .add_extension(
             x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False
         )
         .add_extension(
