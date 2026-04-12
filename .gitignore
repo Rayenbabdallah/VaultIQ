@@ -9,5 +9,7 @@ venv/
 dist/
 *.egg-info/
 vault/unsigned/*.pdf
+vault/signed/*.pdf
+vault/signed/*.xml
 .claude
 .claude/settings.local.json

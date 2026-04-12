@@ -214,10 +214,36 @@ def _build_response(
 
 
 # ---------------------------------------------------------------------------
-# Download endpoint
+# Shared helpers
 # ---------------------------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).parent.parent
+
+
+def _get_loan_authorised(
+    loan_id: int,
+    payload: dict,
+    db: Session,
+) -> LoanApplication:
+    """Fetch a loan and verify the caller is the applicant, analyst, or admin."""
+    loan: LoanApplication | None = (
+        db.query(LoanApplication).filter(LoanApplication.id == loan_id).first()
+    )
+    if loan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Loan not found.")
+    requester_id   = int(payload.get("user_id", 0))
+    requester_role = payload.get("role", "")
+    if requester_role not in ("admin", "analyst") and loan.applicant_id != requester_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorised to access this document.",
+        )
+    return loan
+
+
+# ---------------------------------------------------------------------------
+# Download unsigned endpoint
+# ---------------------------------------------------------------------------
 
 
 @router.get(
@@ -235,41 +261,123 @@ def download_unsigned_pdf(
     payload: Annotated[dict, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
-    """
-    Return the unsigned PDF agreement for the given loan application.
+    """Return the unsigned PDF agreement. Caller must be the applicant, analyst, or admin."""
+    loan = _get_loan_authorised(loan_id, payload, db)
 
-    The requesting user must be the applicant, an analyst, or an admin.
-    """
-    loan: LoanApplication | None = (
-        db.query(LoanApplication).filter(LoanApplication.id == loan_id).first()
-    )
-    if loan is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Loan not found.")
+    if not loan.pdf_unsigned_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Unsigned PDF has not been generated yet.")
+    pdf_path = PROJECT_ROOT / loan.pdf_unsigned_path
+    if not pdf_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="PDF file not found on disk.")
 
-    # Authorisation: applicant can only access their own document
-    requester_id = int(payload.get("user_id", 0))
-    requester_role = payload.get("role", "")
-    if requester_role not in ("admin", "analyst") and loan.applicant_id != requester_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not authorised to access this document.",
-        )
+    return FileResponse(path=str(pdf_path), media_type="application/pdf",
+                        filename=f"VaultIQ_LoanAgreement_{loan_id:05d}_UNSIGNED.pdf")
+
+
+# ---------------------------------------------------------------------------
+# Sign endpoint
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/{loan_id}/sign",
+    status_code=status.HTTP_200_OK,
+    summary="Sign loan agreement (PAdES-B → PAdES-T → XAdES-T)",
+    responses={
+        403: {"description": "Not authorised or unsigned PDF missing"},
+        404: {"description": "Loan not found"},
+        500: {"description": "A signing step failed"},
+    },
+)
+def sign_loan_agreement(
+    loan_id: int,
+    payload: Annotated[dict, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    """
+    Execute the three-step signing pipeline in sequence:
+
+    1. **PAdES-B** — CAdES-detached signature with the platform leaf certificate
+    2. **PAdES-T** — Adds an RFC 3161 document timestamp from freetsa.org
+    3. **XAdES-T** — Detached XML signature + signature timestamp token
+
+    Returns the relative paths and SHA-256 hashes of all three artifacts.
+    Requires a valid JWT. The applicant may only sign their own loan; analysts
+    and admins may sign any loan.
+    """
+    from api.signer import generate_xades_t, sign_pades_b, sign_pades_t
+
+    loan = _get_loan_authorised(loan_id, payload, db)
 
     if not loan.pdf_unsigned_path:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="PDF has not been generated for this application yet.",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unsigned PDF must be generated before signing.",
         )
 
-    pdf_path = PROJECT_ROOT / loan.pdf_unsigned_path
+    # Step 1 — PAdES-B
+    try:
+        pades_b_path = sign_pades_b(loan_id=loan_id, db=db)
+    except Exception as exc:
+        logger.error("PAdES-B failed loan=%s: %s", loan_id, exc)
+        raise HTTPException(status_code=500, detail=f"PAdES-B signing failed: {exc}")
+
+    # Step 2 — PAdES-T
+    try:
+        pades_t_path = sign_pades_t(loan_id=loan_id, db=db)
+    except Exception as exc:
+        logger.error("PAdES-T failed loan=%s: %s", loan_id, exc)
+        raise HTTPException(status_code=500, detail=f"PAdES-T timestamp failed: {exc}")
+
+    # Step 3 — XAdES-T
+    try:
+        xades_path = generate_xades_t(loan_id=loan_id, db=db)
+    except Exception as exc:
+        logger.error("XAdES-T failed loan=%s: %s", loan_id, exc)
+        raise HTTPException(status_code=500, detail=f"XAdES-T generation failed: {exc}")
+
+    def _rel(p: Path) -> str:
+        return str(p.relative_to(PROJECT_ROOT)).replace("\\", "/")
+
+    import hashlib
+    return {
+        "loan_id":  loan_id,
+        "pades_b":  {"path": _rel(pades_b_path), "sha256": hashlib.sha256(pades_b_path.read_bytes()).hexdigest()},
+        "pades_t":  {"path": _rel(pades_t_path), "sha256": hashlib.sha256(pades_t_path.read_bytes()).hexdigest()},
+        "xades_t":  {"path": _rel(xades_path),   "sha256": hashlib.sha256(xades_path.read_bytes()).hexdigest()},
+    }
+
+
+# ---------------------------------------------------------------------------
+# Download signed (PAdES-T) endpoint
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/{loan_id}/download-signed",
+    summary="Download signed loan agreement (PAdES-T PDF)",
+    response_class=FileResponse,
+    responses={
+        200: {"content": {"application/pdf": {}}},
+        403: {"description": "Not authorised"},
+        404: {"description": "Loan not found or PDF not yet signed"},
+    },
+)
+def download_signed_pdf(
+    loan_id: int,
+    payload: Annotated[dict, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    """Return the PAdES-T signed PDF. Caller must be the applicant, analyst, or admin."""
+    loan = _get_loan_authorised(loan_id, payload, db)
+
+    if not loan.pdf_pades_t_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Signed PDF not available yet. Call POST /loans/{id}/sign first.")
+    pdf_path = PROJECT_ROOT / loan.pdf_pades_t_path
     if not pdf_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="PDF file not found on disk. Please contact support.",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Signed PDF file not found on disk.")
 
-    return FileResponse(
-        path=str(pdf_path),
-        media_type="application/pdf",
-        filename=f"VaultIQ_LoanAgreement_{loan_id:05d}_UNSIGNED.pdf",
-    )
+    return FileResponse(path=str(pdf_path), media_type="application/pdf",
+                        filename=f"VaultIQ_LoanAgreement_{loan_id:05d}_SIGNED.pdf")
