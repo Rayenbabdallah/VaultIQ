@@ -3,6 +3,18 @@ AWS Bedrock client for VaultIQ.
 
 Wraps the boto3 Bedrock Runtime converse() API for Amazon Nova models.
 Provides a typed document-extraction helper used by the KYC module.
+
+MOCK_AI mode
+------------
+Set MOCK_AI=true in .env (or the environment) to skip all AWS calls and
+return deterministic hardcoded responses.  This lets the full demo run
+without any AWS account or credentials.
+
+  - KYC: maps the uploaded filename to a known test identity.
+         Any file whose name contains "Bob"  → Bob Nguyen  (ID-002-BRAVO)
+         Any file whose name contains "Clara" → Clara Osei (ID-003-CHARLIE)
+         Everything else                      → Alice Martin (ID-001-ALPHA)
+  - Risk scoring: returns trust_score=82, risk_tier=LOW with a canned narrative.
 """
 
 import json
@@ -10,8 +22,19 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+# boto3 is optional when running in mock mode
+try:
+    import boto3
+    from botocore.exceptions import BotoCoreError, ClientError
+    _BOTO3_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _BOTO3_AVAILABLE = False
+    BotoCoreError = Exception  # type: ignore[misc,assignment]
+    ClientError   = Exception  # type: ignore[misc,assignment]
+
+
+def _mock_mode() -> bool:
+    return os.getenv("MOCK_AI", "false").lower() in ("true", "1", "yes")
 
 
 # ---------------------------------------------------------------------------
@@ -20,6 +43,10 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 @lru_cache(maxsize=1)
 def get_bedrock_client():
+    if not _BOTO3_AVAILABLE:
+        raise BedrockExtractionError(
+            "boto3 is not installed. Either install it or set MOCK_AI=true."
+        )
     return boto3.client(
         "bedrock-runtime",
         region_name=os.getenv("AWS_REGION", "us-east-1"),
@@ -52,16 +79,40 @@ Respond with ONLY a valid JSON object — no markdown, no explanation:
 Use null for any field you cannot find."""
 
 
+_MOCK_KYC_MAP = {
+    "bob":   ExtractedIdentity(full_name="Bob Nguyen",  id_number="ID-002-BRAVO",   raw_response="[mock]"),
+    "clara": ExtractedIdentity(full_name="Clara Osei",  id_number="ID-003-CHARLIE", raw_response="[mock]"),
+    "alice": ExtractedIdentity(full_name="Alice Martin", id_number="ID-001-ALPHA",  raw_response="[mock]"),
+}
+
+
+def _mock_extract_identity(filename: str) -> ExtractedIdentity:
+    """Return a deterministic identity based on the uploaded filename."""
+    lower = (filename or "").lower()
+    for key, identity in _MOCK_KYC_MAP.items():
+        if key in lower:
+            return identity
+    # Default to Alice if filename doesn't match any known test user
+    return _MOCK_KYC_MAP["alice"]
+
+
 def extract_identity_from_image(
     image_bytes: bytes,
     mime_type: str,  # "image/jpeg" or "image/png"
+    filename: str = "",
 ) -> ExtractedIdentity:
     """
     Send the document image to Nova and parse the returned JSON.
 
+    When MOCK_AI=true the AWS call is skipped entirely; identity is derived
+    from the uploaded filename so all three demo users work without credentials.
+
     Raises:
         BedrockExtractionError: if the API call fails or returns unparseable output.
     """
+    if _mock_mode():
+        return _mock_extract_identity(filename)
+
     fmt = "jpeg" if mime_type == "image/jpeg" else "png"
 
     message = {
@@ -165,9 +216,24 @@ def score_borrower_risk(
     """
     Ask Nova to score a loan application.
 
+    When MOCK_AI=true the AWS call is skipped and a deterministic score is
+    returned so the demo flows end-to-end without AWS credentials.
+
     Raises:
         BedrockExtractionError: on API failure or unparseable response.
     """
+    if _mock_mode():
+        return RiskScore(
+            trust_score=82,
+            risk_tier="LOW",
+            risk_narrative=(
+                f"KYC-verified borrower requesting ${loan_amount:,.0f} "
+                f"over {duration_months} months for {loan_purpose.lower()} — "
+                "moderate loan-to-income ratio with no adverse indicators."
+            ),
+            raw_response="[mock]",
+        )
+
     user_message = (
         f"Borrower Profile:\n"
         f"- Name: {full_name}\n"

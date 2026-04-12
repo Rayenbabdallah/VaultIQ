@@ -17,6 +17,9 @@ services:
       - .env
     environment:
       DB_PATH: /app/db/vaultiq.db
+      # Set MOCK_AI=true here (or in .env) to run without AWS credentials.
+      # The .env file overrides this if AWS keys are present and MOCK_AI=false.
+      MOCK_AI: ${MOCK_AI:-true}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

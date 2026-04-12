@@ -104,8 +104,8 @@ def _use_nova() -> bool:
     return provider != "tesseract"
 
 
-def _extract_with_nova(raw: bytes, mime_type: str) -> ExtractedIdentity:
-    return extract_identity_from_image(raw, mime_type)
+def _extract_with_nova(raw: bytes, mime_type: str, filename: str = "") -> ExtractedIdentity:
+    return extract_identity_from_image(raw, mime_type, filename=filename)
 
 
 def _extract_with_tesseract(raw: bytes) -> ExtractedIdentity:
@@ -137,14 +137,15 @@ def _extract_with_tesseract(raw: bytes) -> ExtractedIdentity:
     )
 
 
-def _extract_identity(raw: bytes, mime_type: str) -> ExtractedIdentity:
+def _extract_identity(raw: bytes, mime_type: str, filename: str = "") -> ExtractedIdentity:
     """
     Try Nova first; fall back to tesseract on error (unless OCR_PROVIDER=nova,
     in which case Bedrock failures propagate as OCR_EXTRACTION_FAIL).
+    When MOCK_AI=true the call is short-circuited inside bedrock.py.
     """
     if _use_nova():
         try:
-            return _extract_with_nova(raw, mime_type)
+            return _extract_with_nova(raw, mime_type, filename=filename)
         except BedrockExtractionError as exc:
             logger.warning("Nova extraction failed (%s); falling back to tesseract.", exc)
             # Only fall back automatically when provider is not explicitly locked to nova
@@ -209,7 +210,7 @@ async def verify_kyc(
     _validate_upload(file, raw)
 
     # 2. Identity extraction
-    identity = _extract_identity(raw, file.content_type)
+    identity = _extract_identity(raw, file.content_type, filename=file.filename or "")
     if not identity.full_name or not identity.id_number:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
