@@ -72,6 +72,8 @@ class LoanApplication(Base):
     trust_score = Column(Integer, nullable=True)
     risk_tier = Column(SAEnum(RiskTier), nullable=True)
     risk_narrative = Column(Text, nullable=True)
+    # PDF paths — set after document generation
+    pdf_unsigned_path = Column(String(500), nullable=True)
     submitted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
         DateTime,

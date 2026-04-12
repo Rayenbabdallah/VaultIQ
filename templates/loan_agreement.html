@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Loan Agreement — VaultIQ #{{ loan.id }}</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────────── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 10pt;
+      color: #1a1a2e;
+      line-height: 1.55;
+      padding: 0;
+    }
+
+    /* ── Header / brand bar ───────────────────────────────────────────── */
+    .header {
+      background: #0f2d57;
+      color: #ffffff;
+      padding: 28px 40px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .header .brand { display: flex; align-items: center; gap: 12px; }
+    .header .logo-mark {
+      width: 44px; height: 44px;
+      background: #2e86de;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 900; color: #ffffff;
+      letter-spacing: -1px;
+    }
+    .header .brand-name {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      line-height: 1;
+    }
+    .header .brand-tagline {
+      font-size: 8pt;
+      color: #a8c4e5;
+      margin-top: 2px;
+      letter-spacing: 0.5px;
+    }
+    .header .doc-meta {
+      text-align: right;
+      font-size: 8pt;
+      color: #a8c4e5;
+      line-height: 1.7;
+    }
+    .header .doc-meta strong {
+      color: #ffffff;
+      font-size: 9pt;
+    }
+
+    /* ── Accent bar ───────────────────────────────────────────────────── */
+    .accent-bar {
+      height: 5px;
+      background: linear-gradient(90deg, #2e86de 0%, #54c2b0 100%);
+    }
+
+    /* ── Main content wrapper ─────────────────────────────────────────── */
+    .content { padding: 32px 40px 40px; }
+
+    /* ── Section headings ─────────────────────────────────────────────── */
+    h1.doc-title {
+      font-size: 16pt;
+      font-weight: 700;
+      color: #0f2d57;
+      text-align: center;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .doc-subtitle {
+      text-align: center;
+      font-size: 9pt;
+      color: #6b7a8d;
+      margin-bottom: 28px;
+    }
+
+    h2.section-title {
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: #0f2d57;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-bottom: 2px solid #2e86de;
+      padding-bottom: 4px;
+      margin: 24px 0 12px;
+    }
+
+    /* ── Info grid (two-column key/value) ─────────────────────────────── */
+    .info-grid {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 4px;
+    }
+    .info-grid td {
+      padding: 5px 8px;
+      vertical-align: top;
+      font-size: 9.5pt;
+    }
+    .info-grid td.label {
+      width: 38%;
+      color: #6b7a8d;
+      font-weight: 600;
+    }
+    .info-grid td.value {
+      color: #1a1a2e;
+    }
+    .info-grid tr:nth-child(even) td {
+      background: #f4f7fc;
+    }
+
+    /* ── Two-column layout for parties / loan details ─────────────────── */
+    .two-col {
+      display: table;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .two-col .col {
+      display: table-cell;
+      width: 50%;
+      vertical-align: top;
+      padding-right: 20px;
+    }
+    .two-col .col:last-child { padding-right: 0; }
+
+    /* ── Summary highlight box ────────────────────────────────────────── */
+    .summary-box {
+      background: #eaf3ff;
+      border-left: 4px solid #2e86de;
+      border-radius: 4px;
+      padding: 14px 18px;
+      margin: 8px 0 16px;
+      display: table;
+      width: 100%;
+    }
+    .summary-box .item {
+      display: table-cell;
+      text-align: center;
+    }
+    .summary-box .item .num {
+      font-size: 15pt;
+      font-weight: 800;
+      color: #0f2d57;
+    }
+    .summary-box .item .lbl {
+      font-size: 7.5pt;
+      color: #6b7a8d;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-top: 2px;
+    }
+
+    /* ── Repayment schedule table ─────────────────────────────────────── */
+    .schedule-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+      margin-top: 8px;
+    }
+    .schedule-table thead tr {
+      background: #0f2d57;
+      color: #ffffff;
+    }
+    .schedule-table thead th {
+      padding: 7px 10px;
+      text-align: right;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .schedule-table thead th:first-child { text-align: center; }
+    .schedule-table thead th:nth-child(2) { text-align: left; }
+    .schedule-table tbody tr:nth-child(even) td {
+      background: #f4f7fc;
+    }
+    .schedule-table tbody tr:last-child td {
+      font-weight: 700;
+      border-top: 2px solid #0f2d57;
+    }
+    .schedule-table tbody td {
+      padding: 5px 10px;
+      text-align: right;
+      border-bottom: 1px solid #e0e7f0;
+    }
+    .schedule-table tbody td:first-child { text-align: center; color: #6b7a8d; }
+    .schedule-table tbody td:nth-child(2) { text-align: left; }
+
+    /* ── Terms text ───────────────────────────────────────────────────── */
+    .terms-list {
+      padding-left: 18px;
+      margin-top: 6px;
+    }
+    .terms-list li {
+      margin-bottom: 5px;
+      font-size: 8.5pt;
+      color: #333;
+    }
+
+    /* ── Signature block ──────────────────────────────────────────────── */
+    .signature-section {
+      margin-top: 36px;
+      display: table;
+      width: 100%;
+    }
+    .sig-block {
+      display: table-cell;
+      width: 45%;
+      padding-right: 5%;
+      vertical-align: bottom;
+    }
+    .sig-block:last-child { padding-right: 0; }
+    .sig-line {
+      border-top: 1.5px solid #1a1a2e;
+      margin-top: 48px;
+      padding-top: 6px;
+    }
+    .sig-label {
+      font-size: 8pt;
+      color: #6b7a8d;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .sig-name { font-size: 9pt; color: #1a1a2e; margin-top: 2px; }
+    .sig-placeholder {
+      height: 48px;
+      border: 1.5px dashed #b0bec5;
+      border-radius: 4px;
+      margin-top: 8px;
+      background: #fafcff;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sig-placeholder-text {
+      font-size: 7.5pt;
+      color: #b0bec5;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    /* ── Footer ───────────────────────────────────────────────────────── */
+    .footer {
+      margin-top: 40px;
+      padding-top: 12px;
+      border-top: 1px solid #e0e7f0;
+      text-align: center;
+      font-size: 7.5pt;
+      color: #9eabbe;
+      line-height: 1.6;
+    }
+
+    /* ── Risk badge ───────────────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 12px;
+      font-size: 7.5pt;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .badge-low    { background: #d4edda; color: #155724; }
+    .badge-medium { background: #fff3cd; color: #856404; }
+    .badge-high   { background: #ffe5cc; color: #7d3c00; }
+    .badge-manual { background: #e8eaf6; color: #3949ab; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<div class="header">
+  <div class="brand">
+    <div class="logo-mark">V</div>
+    <div>
+      <div class="brand-name">VaultIQ</div>
+      <div class="brand-tagline">Intelligent Lending Platform</div>
+    </div>
+  </div>
+  <div class="doc-meta">
+    <strong>LOAN AGREEMENT</strong><br>
+    Agreement No: <strong>#{{ "%05d" | format(loan.id) }}</strong><br>
+    Issue Date: {{ issue_date }}<br>
+    Status: UNSIGNED DRAFT
+  </div>
+</div>
+<div class="accent-bar"></div>
+
+<!-- ── Content ─────────────────────────────────────────────────────────── -->
+<div class="content">
+
+  <h1 class="doc-title">PERSONAL LOAN AGREEMENT</h1>
+  <p class="doc-subtitle">This agreement is entered into between VaultIQ Financial Services ("Lender") and the Borrower identified below.</p>
+
+  <!-- ── Key figures ── -->
+  <div class="summary-box">
+    <div class="item"><div class="num">${{ "%.2f" | format(loan.amount) }}</div><div class="lbl">Loan Amount</div></div>
+    <div class="item"><div class="num">{{ loan.term_months }}</div><div class="lbl">Months</div></div>
+    <div class="item"><div class="num">{{ "%.2f" | format(annual_rate_pct) }}%</div><div class="lbl">Annual Rate</div></div>
+    <div class="item"><div class="num">${{ "%.2f" | format(monthly_payment) }}</div><div class="lbl">Monthly Payment</div></div>
+    <div class="item"><div class="num">${{ "%.2f" | format(total_repayable) }}</div><div class="lbl">Total Repayable</div></div>
+  </div>
+
+  <!-- ── Section 1: Parties ── -->
+  <h2 class="section-title">1. Parties</h2>
+  <div class="two-col">
+    <div class="col">
+      <table class="info-grid">
+        <tr><td class="label">Borrower Name</td><td class="value">{{ borrower_name }}</td></tr>
+        <tr><td class="label">ID Number</td><td class="value">{{ borrower_id_number or "—" }}</td></tr>
+        <tr><td class="label">Email</td><td class="value">{{ user.email }}</td></tr>
+        <tr><td class="label">KYC Status</td><td class="value">{{ user.kyc_status.value | upper }}</td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <table class="info-grid">
+        <tr><td class="label">Lender</td><td class="value">VaultIQ Financial Services</td></tr>
+        <tr><td class="label">Registered</td><td class="value">Platform Reference Entity</td></tr>
+        <tr><td class="label">Contact</td><td class="value">support@vaultiq.io</td></tr>
+        <tr><td class="label">Jurisdiction</td><td class="value">Platform Default</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Section 2: Loan Details ── -->
+  <h2 class="section-title">2. Loan Details</h2>
+  <div class="two-col">
+    <div class="col">
+      <table class="info-grid">
+        <tr><td class="label">Application ID</td><td class="value">#{{ "%05d" | format(loan.id) }}</td></tr>
+        <tr><td class="label">Principal Amount</td><td class="value">${{ "%.2f" | format(loan.amount) }}</td></tr>
+        <tr><td class="label">Annual Interest Rate</td><td class="value">{{ "%.2f" | format(annual_rate_pct) }}% p.a.</td></tr>
+        <tr><td class="label">Loan Term</td><td class="value">{{ loan.term_months }} months</td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <table class="info-grid">
+        <tr><td class="label">Purpose</td><td class="value">{{ loan.purpose or "—" }}</td></tr>
+        <tr><td class="label">First Payment Due</td><td class="value">{{ schedule[0].due_date if schedule else "—" }}</td></tr>
+        <tr><td class="label">Final Payment Due</td><td class="value">{{ schedule[-1].due_date if schedule else "—" }}</td></tr>
+        <tr><td class="label">Risk Assessment</td>
+            <td class="value">
+              {% if loan.risk_tier %}
+                {% set tier = loan.risk_tier.value %}
+                {% if tier == "LOW" %}<span class="badge badge-low">{{ tier }}</span>
+                {% elif tier == "MEDIUM" %}<span class="badge badge-medium">{{ tier }}</span>
+                {% elif tier == "HIGH" %}<span class="badge badge-high">{{ tier }}</span>
+                {% else %}<span class="badge badge-manual">{{ tier }}</span>
+                {% endif %}
+              {% else %}—{% endif %}
+            </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Section 3: Repayment Schedule ── -->
+  <h2 class="section-title">3. Repayment Schedule</h2>
+  <table class="schedule-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Due Date</th>
+        <th>Payment</th>
+        <th>Principal</th>
+        <th>Interest</th>
+        <th>Balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in schedule %}
+      <tr>
+        <td>{{ row.month }}</td>
+        <td>{{ row.due_date }}</td>
+        <td>${{ "%.2f" | format(row.payment) }}</td>
+        <td>${{ "%.2f" | format(row.principal) }}</td>
+        <td>${{ "%.2f" | format(row.interest) }}</td>
+        <td>${{ "%.2f" | format(row.balance) }}</td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <td colspan="2">TOTALS</td>
+        <td>${{ "%.2f" | format(total_repayable) }}</td>
+        <td>${{ "%.2f" | format(loan.amount) }}</td>
+        <td>${{ "%.2f" | format(total_interest) }}</td>
+        <td>$0.00</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── Section 4: Terms & Conditions ── -->
+  <h2 class="section-title">4. Terms &amp; Conditions</h2>
+  <ol class="terms-list">
+    <li><strong>Repayment:</strong> The Borrower agrees to repay the loan in {{ loan.term_months }} equal monthly instalments as per the schedule above. Payments are due on the same calendar day each month.</li>
+    <li><strong>Late Payment:</strong> Payments received more than 5 business days after the due date will attract a late fee of 1.5% of the overdue instalment, compounded monthly.</li>
+    <li><strong>Prepayment:</strong> The Borrower may prepay all or part of the outstanding balance at any time without penalty. Prepayments reduce the principal and shorten the remaining term.</li>
+    <li><strong>Default:</strong> The Lender may declare the full outstanding balance immediately due and payable if the Borrower misses two or more consecutive payments, becomes insolvent, or provides materially false information in the application.</li>
+    <li><strong>Governing Law:</strong> This agreement is governed by the laws of the jurisdiction in which VaultIQ Financial Services is registered. Any disputes shall be resolved by binding arbitration.</li>
+    <li><strong>Data &amp; Privacy:</strong> Borrower data collected during the application process is handled in accordance with VaultIQ's Privacy Policy. KYC information is stored securely and is not shared with third parties except as required by law.</li>
+    <li><strong>Entire Agreement:</strong> This document constitutes the entire agreement between the parties regarding the loan described herein and supersedes all prior negotiations or representations.</li>
+  </ol>
+
+  <!-- ── Section 5: Signatures ── -->
+  <h2 class="section-title">5. Signatures</h2>
+  <p style="font-size:8.5pt; color:#555; margin-bottom:16px;">
+    By signing below, both parties confirm they have read, understood, and agreed to all terms set out in this Loan Agreement.
+  </p>
+
+  <div class="signature-section">
+    <div class="sig-block">
+      <div class="sig-placeholder">
+        <span class="sig-placeholder-text">Borrower Signature</span>
+      </div>
+      <div class="sig-line">
+        <div class="sig-label">Borrower</div>
+        <div class="sig-name">{{ borrower_name }}</div>
+        <div class="sig-label" style="margin-top:4px;">Date: ___________________</div>
+      </div>
+    </div>
+    <div class="sig-block">
+      <div class="sig-placeholder">
+        <span class="sig-placeholder-text">Authorised Signatory</span>
+      </div>
+      <div class="sig-line">
+        <div class="sig-label">VaultIQ Financial Services</div>
+        <div class="sig-name">Authorised Representative</div>
+        <div class="sig-label" style="margin-top:4px;">Date: ___________________</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="footer">
+    VaultIQ Financial Services &nbsp;·&nbsp; Intelligent Lending Platform<br>
+    Agreement #{{ "%05d" | format(loan.id) }} &nbsp;·&nbsp; Generated {{ issue_date }} &nbsp;·&nbsp; UNSIGNED DRAFT — NOT LEGALLY BINDING UNTIL EXECUTED<br>
+    This document is system-generated. For queries contact support@vaultiq.io
+  </div>
+
+</div><!-- /content -->
+</body>
+</html>

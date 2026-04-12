@@ -8,5 +8,6 @@ certs/*.pem
 venv/
 dist/
 *.egg-info/
+vault/unsigned/*.pdf
 .claude
 .claude/settings.local.json
