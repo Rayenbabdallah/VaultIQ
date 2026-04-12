@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  html { font-family: 'Inter', system-ui, sans-serif; }
+
+  body {
+    @apply bg-navy-900 text-slate-200 antialiased;
+    background-image: linear-gradient(rgba(46,134,222,0.03) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(46,134,222,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  ::-webkit-scrollbar       { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-navy-800; }
+  ::-webkit-scrollbar-thumb { @apply bg-navy-500 rounded-full; }
+}
+
+@layer components {
+  .card {
+    @apply bg-navy-800 border border-navy-600 rounded-2xl shadow-card;
+  }
+  .card-glow {
+    @apply card shadow-glow-sm border-brand-700;
+  }
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm
+           bg-brand text-white hover:bg-brand-600 active:bg-brand-700
+           transition-all duration-150 shadow-glow-sm hover:shadow-glow
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm
+           bg-navy-700 text-slate-200 border border-navy-500 hover:bg-navy-600 hover:border-navy-400
+           transition-all duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+           text-slate-400 hover:text-slate-200 hover:bg-navy-700
+           transition-all duration-150;
+  }
+  .input {
+    @apply w-full px-4 py-3 rounded-xl bg-navy-700 border border-navy-500
+           text-slate-200 placeholder-slate-500
+           focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent
+           transition-all duration-150;
+  }
+  .label {
+    @apply block text-sm font-medium text-slate-300 mb-1.5;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase;
+  }
+  .section-title {
+    @apply text-xs font-semibold tracking-widest uppercase text-slate-500 mb-3;
+  }
+}

@@ -49,11 +49,13 @@ def health_check():
 # ---------------------------------------------------------------------------
 # Routers
 # ---------------------------------------------------------------------------
-from api.kyc import router as kyc_router      # noqa: E402
-from api.loans import router as loans_router  # noqa: E402
+from api.kyc      import router as kyc_router       # noqa: E402
+from api.loans    import router as loans_router    # noqa: E402
+from api.verifier import router as verifier_router # noqa: E402
 
 app.include_router(kyc_router)
 app.include_router(loans_router)
+app.include_router(verifier_router)
 
 # from api.routers import users
 # app.include_router(users.router, prefix="/users", tags=["users"])

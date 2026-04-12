@@ -11,6 +11,7 @@ services:
     volumes:
       - ./certs:/app/certs:ro
       - vaultiq_data:/app/data
+      - ./vault:/app/vault
     env_file:
       - .env
     environment:
@@ -22,6 +23,18 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vaultiq-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   vaultiq_data:
