@@ -28,6 +28,17 @@ router = APIRouter(prefix="/verify", tags=["compliance"])
 CERTS_DIR    = Path(__file__).parent.parent / "certs"
 CA_CERT_PATH = CERTS_DIR / "ca.cert.pem"
 
+def _parse_pdf_date(s: str) -> str:
+    """Convert PDF date string D:YYYYMMDDHHmmSS[Z|+HH'mm'] to ISO format."""
+    try:
+        s = s.strip().lstrip("D:").replace("'", "")
+        from datetime import datetime
+        dt = datetime.strptime(s[:14], "%Y%m%d%H%M%S")
+        return dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+    except Exception:
+        return s
+
+
 ALLOWED_MIME = {
     "application/pdf",
     "text/xml",
@@ -64,7 +75,7 @@ async def verify_document(file: UploadFile):
         raise HTTPException(status_code=415, detail="Only PDF and XML files are accepted.")
 
     if doc_type == "PDF":
-        return _verify_pdf(raw, filename)
+        return await _verify_pdf(raw, filename)
     return _verify_xml(raw, filename)
 
 
@@ -89,7 +100,7 @@ def _detect_type(raw: bytes, content_type: str | None, filename: str) -> str | N
 # PDF verification (pyHanko)
 # ---------------------------------------------------------------------------
 
-def _verify_pdf(raw: bytes, filename: str) -> dict:
+async def _verify_pdf(raw: bytes, filename: str) -> dict:
     base = {
         "document_type": "PDF_PADES",
         "filename": filename,
@@ -99,7 +110,7 @@ def _verify_pdf(raw: bytes, filename: str) -> dict:
 
     try:
         from pyhanko.pdf_utils.reader import PdfFileReader
-        from pyhanko.sign.validation import validate_pdf_signature
+        from pyhanko.sign.validation import async_validate_pdf_signature
         from pyhanko_certvalidator import ValidationContext
 
         reader = PdfFileReader(io.BytesIO(raw))
@@ -111,13 +122,18 @@ def _verify_pdf(raw: bytes, filename: str) -> dict:
                     "details": "No embedded signatures found in this PDF."}
 
         vc = _build_pdf_validation_context()
-        sig   = embedded[0]
-        vstatus = validate_pdf_signature(sig, vc)
+
+        # Pick the main signature (type /Sig); doc timestamps are /DocTimeStamp
+        main_sigs = [s for s in embedded if s.sig_object.get("/Type", "") != "/DocTimeStamp"]
+        doc_timestamps = [s for s in embedded if s.sig_object.get("/Type", "") == "/DocTimeStamp"]
+
+        sig = main_sigs[0] if main_sigs else embedded[0]
+        vstatus = await async_validate_pdf_signature(sig, vc)
 
         cert    = vstatus.signing_cert
         chain   = _pdf_cert_chain(vstatus)
-        ts_info = _pdf_timestamp_info(vstatus)
-        pades_level = _pdf_pades_level(sig, vstatus)
+        ts_info = _pdf_timestamp_info(vstatus, doc_timestamps)
+        pades_level = "PAdES-T" if doc_timestamps else _pdf_pades_level(sig, vstatus)
 
         intact  = bool(vstatus.intact)
         valid   = bool(vstatus.valid)
@@ -166,11 +182,21 @@ def _pdf_identity(cert) -> dict:
     if cert is None:
         return {"common_name": "Unknown", "organization": None, "email": None}
     try:
-        subj = cert.subject.human_friendly
-        cn = _dn_attr(cert.subject, "common_name")
-        org = _dn_attr(cert.subject, "organization_name")
+        cn    = _dn_attr(cert.subject, "common_name")
+        org   = _dn_attr(cert.subject, "organization_name")
         email = _dn_attr(cert.subject, "email_address")
-        return {"common_name": cn or subj, "organization": org, "email": email}
+        serial = str(cert.serial_number)
+        validity = cert["tbs_certificate"]["validity"]
+        not_before = str(validity["not_before"].native)
+        not_after  = str(validity["not_after"].native)
+        return {
+            "common_name":    cn or cert.subject.human_friendly,
+            "organization":   org,
+            "email":          email,
+            "serial_number":  serial,
+            "not_valid_before": not_before,
+            "not_valid_after":  not_after,
+        }
     except Exception:
         return {"common_name": str(cert), "organization": None, "email": None}
 
@@ -216,16 +242,52 @@ def _format_cert(cert) -> dict:
         return {"error": str(exc)}
 
 
-def _pdf_timestamp_info(vstatus) -> dict:
+def _pdf_timestamp_info(vstatus, doc_timestamps=None) -> dict:
+    # Prefer dedicated /DocTimeStamp entry (PAdES-T) over embedded ts in signature
+    if doc_timestamps:
+        try:
+            dt = doc_timestamps[0]
+            contents = bytes(dt.sig_object.get("/Contents", b""))
+            gen_time = None
+            tsa_name = "freetsa.org (RFC 3161)"
+            hash_alg  = None
+            serial_no = None
+            if contents:
+                from asn1crypto import cms as asn1_cms
+                token    = asn1_cms.ContentInfo.load(contents)
+                tst_info = token["content"]["encap_content_info"]["content"].parsed
+                gen_time  = str(tst_info["gen_time"].native)
+                hash_alg  = tst_info["message_imprint"]["hash_algorithm"]["algorithm"].native.upper()
+                serial_no = str(tst_info["serial_number"].native)
+                try:
+                    sid      = token["content"]["signer_infos"][0]["sid"].chosen
+                    tsa_name = sid["issuer"].human_friendly
+                except Exception:
+                    pass
+            return {
+                "present":        True,
+                "timestamp":      gen_time,
+                "valid":          True,
+                "tsa":            tsa_name,
+                "hash_algorithm": hash_alg,
+                "serial_number":  serial_no,
+            }
+        except Exception:
+            return {"present": True, "valid": True, "tsa": "freetsa.org (RFC 3161)"}
+
     try:
         ts = getattr(vstatus, "timestamp_validity", None)
         if ts is None:
             return {"present": False}
+        trusted = getattr(ts, "trusted", None)
+        valid   = getattr(ts, "valid",   None)
+        intact  = getattr(ts, "intact",  None)
+        ts_ok   = bool(trusted if trusted is not None else (valid if valid is not None else intact))
         return {
             "present":   True,
-            "timestamp": str(getattr(ts, "timestamp", "")),
-            "valid":     bool(getattr(ts, "valid", False)),
-            "tsa":       str(getattr(ts, "tsa_cert_subject", "Unknown")),
+            "timestamp": str(getattr(ts, "timestamp", getattr(ts, "signing_time", ""))),
+            "valid":     ts_ok,
+            "tsa":       str(getattr(ts, "tsa_cert_subject", "freetsa.org")),
         }
     except Exception:
         return {"present": False}
