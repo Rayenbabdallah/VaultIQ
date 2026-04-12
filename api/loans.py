@@ -39,22 +39,30 @@ router = APIRouter(prefix="/loans", tags=["loans"])
 # ---------------------------------------------------------------------------
 
 class LoanApplyRequest(BaseModel):
-    loan_amount: float = Field(..., gt=0, description="Requested loan amount in USD")
-    loan_purpose: str = Field(..., min_length=5, max_length=500)
+    amount: float = Field(..., gt=0, le=500_000, description="Requested loan amount in USD (max 500,000)")
+    purpose: str = Field(..., min_length=3, max_length=500)
     duration_months: int = Field(..., ge=1, le=360)
     device_info: dict = Field(
         default_factory=dict,
         description="Optional device/session metadata (user-agent, IP hints, etc.)",
     )
 
-    @field_validator("loan_amount")
+    @field_validator("amount")
     @classmethod
     def round_amount(cls, v: float) -> float:
         return round(v, 2)
 
+    @field_validator("purpose")
+    @classmethod
+    def strip_purpose(cls, v: str) -> str:
+        return v.strip()
+
 
 class LoanApplyResponse(BaseModel):
-    application_id: int
+    loan_id: int
+    amount: float
+    purpose: str
+    duration_months: int
     status: str
     trust_score: int
     risk_tier: str
@@ -106,9 +114,9 @@ def apply_for_loan(
     # 1. Create the application record (status=pending until scored)
     loan = LoanApplication(
         applicant_id=user_id,
-        amount=body.loan_amount,
+        amount=body.amount,
         term_months=body.duration_months,
-        purpose=body.loan_purpose,
+        purpose=body.purpose,
         status=LoanStatus.pending,
     )
     db.add(loan)
@@ -119,7 +127,7 @@ def apply_for_loan(
             actor_id=user_id,
             loan_application_id=loan.id,
             action="loan.submitted",
-            detail=f"amount=${body.loan_amount:,.2f} term={body.duration_months}mo purpose={body.loan_purpose!r}",
+            detail=f"amount=${body.amount:,.2f} term={body.duration_months}mo purpose={body.purpose!r}",
             ip_address=ip,
         )
     )
@@ -128,8 +136,8 @@ def apply_for_loan(
     result: RiskResult = score_borrower(
         user_id=user_id,
         loan_application_id=loan.id,
-        loan_amount=body.loan_amount,
-        loan_purpose=body.loan_purpose,
+        loan_amount=body.amount,
+        loan_purpose=body.purpose,
         duration_months=body.duration_months,
         device_info=body.device_info,
         db=db,
@@ -196,7 +204,10 @@ def _build_response(
             logger.warning("PDF generation failed for loan %s: %s", loan.id, exc)
 
     response_body = LoanApplyResponse(
-        application_id=loan.id,
+        loan_id=loan.id,
+        amount=loan.amount,
+        purpose=loan.purpose or "",
+        duration_months=loan.term_months,
         status=loan_status.value,
         trust_score=result.trust_score,
         risk_tier=result.risk_tier.value,
@@ -258,6 +269,7 @@ def _get_loan_authorised(
 )
 def download_unsigned_pdf(
     loan_id: int,
+    request: Request,
     payload: Annotated[dict, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
@@ -271,6 +283,15 @@ def download_unsigned_pdf(
     if not pdf_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="PDF file not found on disk.")
+
+    db.add(AuditLog(
+        actor_id=int(payload.get("user_id", 0)),
+        loan_application_id=loan_id,
+        action="loan.document_downloaded",
+        detail="unsigned PDF downloaded",
+        ip_address=request.client.host if request.client else None,
+    ))
+    db.commit()
 
     return FileResponse(path=str(pdf_path), media_type="application/pdf",
                         filename=f"VaultIQ_LoanAgreement_{loan_id:05d}_UNSIGNED.pdf")
@@ -365,6 +386,7 @@ def sign_loan_agreement(
 )
 def download_signed_pdf(
     loan_id: int,
+    request: Request,
     payload: Annotated[dict, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
@@ -378,6 +400,15 @@ def download_signed_pdf(
     if not pdf_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Signed PDF file not found on disk.")
+
+    db.add(AuditLog(
+        actor_id=int(payload.get("user_id", 0)),
+        loan_application_id=loan_id,
+        action="loan.document_downloaded",
+        detail="PAdES-T signed PDF downloaded",
+        ip_address=request.client.host if request.client else None,
+    ))
+    db.commit()
 
     return FileResponse(path=str(pdf_path), media_type="application/pdf",
                         filename=f"VaultIQ_LoanAgreement_{loan_id:05d}_SIGNED.pdf")

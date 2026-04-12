@@ -282,8 +282,13 @@ async def verify_kyc(
     )
 
     return {
+        # Standard OAuth2 fields
         "access_token": token,
         "token_type": "bearer",
+        # Convenience aliases used by the frontend
+        "token": token,
         "user_id": user.id,
+        "name": user.full_name,
+        "doc_id": identity.id_number,
         "kyc_status": KYCStatus.verified.value,
     }
