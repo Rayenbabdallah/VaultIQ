@@ -47,6 +47,7 @@ from pyhanko.sign.signers import PdfTimeStamper
 from pyhanko.sign.timestamps import HTTPTimeStamper
 
 from api.models import AuditLog, LoanApplication
+from api.pdf_generator import render_for_signing
 
 logger = logging.getLogger(__name__)
 
@@ -169,13 +170,17 @@ def sign_pades_b(loan_id: int, db: Session) -> Path:
     if not loan.pdf_unsigned_path:
         raise ValueError(f"Loan {loan_id} has no unsigned PDF")
 
-    unsigned_path = PROJECT_ROOT / loan.pdf_unsigned_path
+    # Re-render the agreement in *signed* visible state so the document the
+    # cryptographic signature covers shows status=SIGNED and filled-in
+    # signature stamps. The original unsigned draft is preserved on disk
+    # at loan.pdf_unsigned_path for reference.
+    ready_path = render_for_signing(loan_id, db)
     VAULT_SIGNED_DIR.mkdir(parents=True, exist_ok=True)
     pades_b_path = VAULT_SIGNED_DIR / f"{loan_id}_pades_b.pdf"
 
     signer = _load_signer()
 
-    with open(unsigned_path, "rb") as fh:
+    with open(ready_path, "rb") as fh:
         w = IncrementalPdfFileWriter(fh)
         meta = signers.PdfSignatureMetadata(
             field_name="VaultIQSignature",

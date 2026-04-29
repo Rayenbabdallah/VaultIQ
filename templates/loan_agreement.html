@@ -241,6 +241,45 @@
       letter-spacing: 0.5px;
       text-transform: uppercase;
     }
+    .sig-stamp {
+      height: 64px;
+      border: 2px solid #2e8b57;
+      border-radius: 6px;
+      margin-top: 8px;
+      background: #f0faf3;
+      padding: 6px 10px;
+      position: relative;
+    }
+    .sig-stamp .stamp-title {
+      font-size: 8.5pt;
+      font-weight: 800;
+      color: #2e8b57;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .sig-stamp .stamp-name {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #1a1a2e;
+      font-family: 'Brush Script MT', 'Lucida Handwriting', cursive;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+    .sig-stamp .stamp-meta {
+      font-size: 7pt;
+      color: #5a6e72;
+      margin-top: 2px;
+      letter-spacing: 0.3px;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .status-signed   { background: #1f7a4d; color: #ffffff; }
+    .status-unsigned { background: #b8862a; color: #ffffff; }
 
     /* ── Footer ───────────────────────────────────────────────────────── */
     .footer {
@@ -284,7 +323,12 @@
     <strong>LOAN AGREEMENT</strong><br>
     Agreement No: <strong>#{{ "%05d" | format(loan.id) }}</strong><br>
     Issue Date: {{ issue_date }}<br>
-    Status: UNSIGNED DRAFT
+    Status:
+    {% if signed %}
+      <span class="status-badge status-signed">SIGNED</span>
+    {% else %}
+      <span class="status-badge status-unsigned">UNSIGNED DRAFT</span>
+    {% endif %}
   </div>
 </div>
 <div class="accent-bar"></div>
@@ -411,23 +455,43 @@
 
   <div class="signature-section">
     <div class="sig-block">
+      {% if signed %}
+      <div class="sig-stamp">
+        <div class="stamp-title">✓ Digitally Signed</div>
+        <div class="stamp-name">{{ borrower_name }}</div>
+        <div class="stamp-meta">PAdES-T · RFC 3161 · {{ signed_at }}</div>
+      </div>
+      {% else %}
       <div class="sig-placeholder">
         <span class="sig-placeholder-text">Borrower Signature</span>
       </div>
+      {% endif %}
       <div class="sig-line">
         <div class="sig-label">Borrower</div>
         <div class="sig-name">{{ borrower_name }}</div>
-        <div class="sig-label" style="margin-top:4px;">Date: ___________________</div>
+        <div class="sig-label" style="margin-top:4px;">
+          Date: {% if signed %}{{ signed_at }}{% else %}___________________{% endif %}
+        </div>
       </div>
     </div>
     <div class="sig-block">
+      {% if signed %}
+      <div class="sig-stamp">
+        <div class="stamp-title">✓ Digitally Signed</div>
+        <div class="stamp-name">VaultIQ Financial Services</div>
+        <div class="stamp-meta">PAdES-T · RFC 3161 · {{ signed_at }}</div>
+      </div>
+      {% else %}
       <div class="sig-placeholder">
         <span class="sig-placeholder-text">Authorised Signatory</span>
       </div>
+      {% endif %}
       <div class="sig-line">
         <div class="sig-label">VaultIQ Financial Services</div>
         <div class="sig-name">Authorised Representative</div>
-        <div class="sig-label" style="margin-top:4px;">Date: ___________________</div>
+        <div class="sig-label" style="margin-top:4px;">
+          Date: {% if signed %}{{ signed_at }}{% else %}___________________{% endif %}
+        </div>
       </div>
     </div>
   </div>
@@ -435,7 +499,8 @@
   <!-- ── Footer ── -->
   <div class="footer">
     VaultIQ Financial Services &nbsp;·&nbsp; Intelligent Lending Platform<br>
-    Agreement #{{ "%05d" | format(loan.id) }} &nbsp;·&nbsp; Generated {{ issue_date }} &nbsp;·&nbsp; UNSIGNED DRAFT — NOT LEGALLY BINDING UNTIL EXECUTED<br>
+    Agreement #{{ "%05d" | format(loan.id) }} &nbsp;·&nbsp; Generated {{ issue_date }} &nbsp;·&nbsp;
+    {% if signed %}DIGITALLY SIGNED — PAdES-T &amp; XAdES-T (RFC 3161 timestamps){% else %}UNSIGNED DRAFT — NOT LEGALLY BINDING UNTIL EXECUTED{% endif %}<br>
     This document is system-generated. For queries contact support@vaultiq.io
   </div>
 

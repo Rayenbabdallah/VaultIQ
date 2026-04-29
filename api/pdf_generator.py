@@ -17,8 +17,10 @@ WeasyPrint system requirements (Windows):
   and ensure it is on PATH before starting the API server.
 """
 
+import json
 import os
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -34,6 +36,22 @@ from api.models import AuditLog, LoanApplication, User
 PROJECT_ROOT = Path(__file__).parent.parent
 TEMPLATES_DIR = PROJECT_ROOT / "templates"
 VAULT_UNSIGNED_DIR = PROJECT_ROOT / "vault" / "unsigned"
+REGISTRY_PATH = PROJECT_ROOT / "data" / "users.json"
+
+
+@lru_cache(maxsize=1)
+def _registry_by_email() -> dict[str, dict]:
+    try:
+        entries = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    return {e["email"].lower(): e for e in entries}
+
+
+def _lookup_id_number(email: str | None) -> str | None:
+    if not email:
+        return None
+    return _registry_by_email().get(email.lower(), {}).get("id_number")
 
 # ---------------------------------------------------------------------------
 # Config
@@ -55,13 +73,8 @@ _jinja_env = Environment(
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate_loan_pdf(loan_id: int, db: Session) -> Path:
-    """
-    Generate the unsigned loan agreement PDF for the given loan application.
-
-    Returns the path to the saved PDF file.
-    Raises LookupError if the loan or its applicant cannot be found.
-    """
+def _build_context(loan_id: int, db: Session) -> dict:
+    """Load loan + user, compute schedule, return all template variables."""
     loan: LoanApplication | None = (
         db.query(LoanApplication).filter(LoanApplication.id == loan_id).first()
     )
@@ -82,19 +95,31 @@ def generate_loan_pdf(loan_id: int, db: Session) -> Path:
     total_repayable = sum(r["payment"] for r in schedule)
     total_interest = sum(r["interest"] for r in schedule)
 
-    html_content = _render_template(
-        loan=loan,
-        user=user,
-        schedule=schedule,
-        annual_rate_pct=annual_rate,
-        monthly_payment=monthly_payment,
-        total_repayable=total_repayable,
-        total_interest=total_interest,
-    )
+    return {
+        "loan": loan,
+        "user": user,
+        "borrower_id_number": _lookup_id_number(user.email),
+        "schedule": schedule,
+        "annual_rate_pct": annual_rate,
+        "monthly_payment": monthly_payment,
+        "total_repayable": round(total_repayable, 2),
+        "total_interest": round(total_interest, 2),
+    }
 
-    pdf_path = _write_pdf(loan_id=loan_id, html_content=html_content)
 
-    # Persist path + audit
+def generate_loan_pdf(loan_id: int, db: Session) -> Path:
+    """
+    Generate the unsigned loan agreement PDF for the given loan application.
+
+    Returns the path to the saved PDF file.
+    Raises LookupError if the loan or its applicant cannot be found.
+    """
+    ctx = _build_context(loan_id, db)
+    loan = ctx["loan"]
+
+    html_content = _render_template(**ctx, signed=False, signed_at=None)
+    pdf_path = _write_pdf(VAULT_UNSIGNED_DIR / f"{loan_id}.pdf", html_content)
+
     loan.pdf_unsigned_path = str(pdf_path.relative_to(PROJECT_ROOT))
     loan.updated_at = datetime.now(timezone.utc)
     db.add(
@@ -106,8 +131,24 @@ def generate_loan_pdf(loan_id: int, db: Session) -> Path:
         )
     )
     db.commit()
-
     return pdf_path
+
+
+def render_for_signing(loan_id: int, db: Session) -> Path:
+    """
+    Re-render the loan agreement in *signed* visible state, ready for pyHanko
+    to apply the cryptographic PAdES signature on top.
+
+    The visible content (status badge, signature stamps, footer) reflects the
+    signed state so that the cryptographic signature covers a document whose
+    appearance matches its legal effect.
+
+    Writes to vault/unsigned/{loan_id}_ready.pdf and does NOT mutate the DB.
+    """
+    ctx = _build_context(loan_id, db)
+    signed_at = date.today().strftime("%d %B %Y")
+    html_content = _render_template(**ctx, signed=True, signed_at=signed_at)
+    return _write_pdf(VAULT_UNSIGNED_DIR / f"{loan_id}_ready.pdf", html_content)
 
 
 # ---------------------------------------------------------------------------
@@ -159,29 +200,33 @@ def _render_template(
     *,
     loan: LoanApplication,
     user: User,
+    borrower_id_number: str | None,
     schedule: list[dict],
     annual_rate_pct: float,
     monthly_payment: float,
     total_repayable: float,
     total_interest: float,
+    signed: bool = False,
+    signed_at: str | None = None,
 ) -> str:
     template = _jinja_env.get_template("loan_agreement.html")
     return template.render(
         loan=loan,
         user=user,
         borrower_name=user.full_name or user.email,
-        borrower_id_number=None,           # populated after document signing flow
+        borrower_id_number=borrower_id_number,
         issue_date=date.today().strftime("%d %B %Y"),
         schedule=schedule,
         annual_rate_pct=annual_rate_pct,
         monthly_payment=monthly_payment,
         total_repayable=round(total_repayable, 2),
         total_interest=round(total_interest, 2),
+        signed=signed,
+        signed_at=signed_at,
     )
 
 
-def _write_pdf(loan_id: int, html_content: str) -> Path:
-    VAULT_UNSIGNED_DIR.mkdir(parents=True, exist_ok=True)
-    pdf_path = VAULT_UNSIGNED_DIR / f"{loan_id}.pdf"
+def _write_pdf(pdf_path: Path, html_content: str) -> Path:
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
     HTML(string=html_content, base_url=str(PROJECT_ROOT)).write_pdf(str(pdf_path))
     return pdf_path

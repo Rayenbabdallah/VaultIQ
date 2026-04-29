@@ -34,3 +34,6 @@ data/vaultiq.db
 
 VaultIQ_Full_Project.docx
 scripts/gen_submission1.py
+scripts/gen_submission2.py 
+gen_presentation.py
+docs/
